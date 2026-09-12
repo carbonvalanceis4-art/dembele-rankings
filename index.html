@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Live market value ranking of footballers whose surname is Dembélé.">
+  <title>Dembélé Market Value Rankings</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="container">
+    <header class="hero">
+      <p class="eyebrow">FOOTBALL • MARKET VALUE</p>
+      <h1>Dembélé Rankings</h1>
+      <p class="subtitle">Every footballer with <strong>Dembélé</strong> as their surname, ranked by current market value.</p>
+      <p id="updated" class="updated">Loading latest data…</p>
+    </header>
+
+    <section class="summary" aria-label="Summary">
+      <div class="stat"><span id="player-count">—</span><small>players tracked</small></div>
+      <div class="stat"><span id="total-value">—</span><small>combined value</small></div>
+      <div class="stat"><span id="top-value">—</span><small>highest value</small></div>
+    </section>
+
+    <section class="controls" aria-label="Ranking controls">
+      <label class="search">
+        <span class="sr-only">Search players</span>
+        <input id="search" type="search" placeholder="Search player, club or nationality…" autocomplete="off">
+      </label>
+      <label>
+        <span class="sr-only">Sort ranking</span>
+        <select id="sort">
+          <option value="value-desc">Market value: high → low</option>
+          <option value="value-asc">Market value: low → high</option>
+          <option value="name-asc">Name: A → Z</option>
+          <option value="age-asc">Age: young → old</option>
+        </select>
+      </label>
+    </section>
+
+    <section aria-labelledby="ranking-heading">
+      <h2 id="ranking-heading" class="sr-only">Player ranking</h2>
+      <div id="ranking" class="ranking" aria-live="polite"></div>
+      <p id="empty" class="empty" hidden>No players match your search.</p>
+    </section>
+
+    <footer>
+      <p>Market values are editorial estimates from Transfermarkt data. This fan project is not affiliated with Transfermarkt.</p>
+      <p><a href="https://www.transfermarkt.com/" target="_blank" rel="noopener noreferrer">Source: Transfermarkt</a></p>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
