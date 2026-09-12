@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""Discover Dembélé players from a broad Transfermarkt dataset/search sweep, then enrich by player ID."""
+"""Discover Dembélé players broadly, then enrich current Transfermarkt profiles."""
 
 import csv
 import gzip
+import html
 import io
 import json
 import os
+import re
 import sys
 import unicodedata
 from datetime import datetime, timezone
+from html.parser import HTMLParser
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -17,17 +20,10 @@ DISCOVERY_ACTOR_ID = "incognito_mode~transfermarkt-player-scraper"
 ENRICHMENT_ACTOR_ID = "incognito_mode~transfermarkt-player-scraper"
 APIFY_BASE = "https://api.apify.com/v2/actors"
 OUT = Path("data/players.json")
-
-# The public Transfermarkt dataset provides a much broader historical player
-# universe than Transfermarkt's ordinary name-search endpoint. It is refreshed
-# from Transfermarkt data, but currently lags the live site, so we supplement
-# it with live Apify search probes below to catch newer players.
-DATASET_PLAYERS_URL = (
-    "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/players.csv.gz"
-)
-
+DATASET_PLAYERS_URL = "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/players.csv.gz"
+FBREF_INDEX_URL = "https://fbref.com/en/players/de/"
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-DISCOVERY_QUERIES = (
+BASE_SEARCH_QUERIES = (
     [f"Dembele {letter}" for letter in ALPHABET]
     + [f"Dembélé {letter}" for letter in ALPHABET]
     + ["Dembele", "Dembélé"]
@@ -62,17 +58,13 @@ def as_number(value):
     text = value.strip().lower().replace("€", "").replace(",", "")
     multiplier = 1
     if text.endswith("bn"):
-        multiplier = 1_000_000_000
-        text = text[:-2]
+        multiplier, text = 1_000_000_000, text[:-2]
     elif text.endswith("b"):
-        multiplier = 1_000_000_000
-        text = text[:-1]
+        multiplier, text = 1_000_000_000, text[:-1]
     elif text.endswith("m") or "mio" in text:
-        multiplier = 1_000_000
-        text = text.replace("mio", "").replace("m", "")
+        multiplier, text = 1_000_000, text.replace("mio", "").replace("m", "")
     elif text.endswith("k"):
-        multiplier = 1_000
-        text = text[:-1]
+        multiplier, text = 1_000, text[:-1]
     try:
         return int(float(text.strip()) * multiplier)
     except ValueError:
@@ -81,47 +73,66 @@ def as_number(value):
 
 
 def fetch_bytes(url, timeout=300):
-    request = Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0 (compatible; DembeleRankings/1.0)",
-            "Accept": "*/*",
-        },
-    )
+    request = Request(url, headers={"User-Agent": "Mozilla/5.0 (compatible; DembeleRankings/1.0)", "Accept": "*/*"})
     try:
         with urlopen(request, timeout=timeout) as response:
             return response.read()
     except (HTTPError, URLError, TimeoutError) as exc:
-        raise RuntimeError(f"Failed to fetch discovery dataset: {exc}") from exc
+        raise RuntimeError(f"Failed to fetch {url}: {exc}") from exc
+
+
+class FBrefPlayerParser(HTMLParser):
+    """Extract player links from FBref's surname index."""
+
+    def __init__(self):
+        super().__init__()
+        self.players = {}
+        self._href = None
+        self._text = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        href = attrs.get("href", "")
+        if tag == "a" and re.fullmatch(r"/en/players/[0-9a-f]{8}/[^/]+", href or ""):
+            self._href = href
+            self._text = []
+
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self._href is not None:
+            name = html.unescape("".join(self._text)).strip()
+            if name and surname_is_dembele(name):
+                self.players[name] = self._href
+            self._href = None
+            self._text = []
+
+
+def discover_from_fbref():
+    raw = fetch_bytes(FBREF_INDEX_URL)
+    parser = FBrefPlayerParser()
+    parser.feed(raw.decode("utf-8", errors="replace"))
+    print(f"FBref surname index yielded {len(parser.players)} Dembélé candidates.")
+    return parser.players
 
 
 def discover_from_public_dataset():
-    """Find every Dembélé surname in the broad public Transfermarkt dataset."""
     raw = fetch_bytes(DATASET_PLAYERS_URL)
     try:
         text = gzip.decompress(raw).decode("utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise RuntimeError(f"Could not decompress/decode player discovery dataset: {exc}") from exc
-
     discovered = {}
     reader = csv.DictReader(io.StringIO(text))
-    required = {"player_id", "name"}
-    if not required.issubset(set(reader.fieldnames or [])):
-        raise RuntimeError(
-            "Unexpected player discovery dataset schema; expected player_id and name columns."
-        )
-
+    if not {"player_id", "name"}.issubset(set(reader.fieldnames or [])):
+        raise RuntimeError("Unexpected player discovery dataset schema; expected player_id and name columns.")
     for row in reader:
         name = row.get("name") or ""
         player_id = row.get("player_id") or ""
-        if not player_id or not surname_is_dembele(name):
-            continue
-        discovered[str(player_id)] = {
-            "id": str(player_id),
-            "name": name,
-            "profileUrl": row.get("url") or None,
-        }
-
+        if player_id and surname_is_dembele(name):
+            discovered[str(player_id)] = {"id": str(player_id), "name": name, "profileUrl": row.get("url") or None}
     print(f"Public Transfermarkt dataset yielded {len(discovered)} Dembélé surname matches.")
     return discovered
 
@@ -131,11 +142,7 @@ def apify_run(actor_id, payload, token):
     request = Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json", "Accept": "application/json"},
         method="POST",
     )
     try:
@@ -148,21 +155,28 @@ def apify_run(actor_id, payload, token):
     return records
 
 
-def discover_from_live_search(token, discovered):
-    """Supplement the historical dataset with live Transfermarkt search probes."""
-    payload = {
-        "searchQueries": list(DISCOVERY_QUERIES),
-        "maxPlayersPerQuery": DISCOVERY_LIMIT,
-        "includeMarketValueHistory": False,
-        "includeTransferHistory": False,
-        "maxItems": 5000,
-        "language": "en",
-    }
-    records = apify_run(DISCOVERY_ACTOR_ID, payload, token)
-    print(f"Live discovery actor returned {len(records)} records across {len(DISCOVERY_QUERIES)} probes.")
+def discover_from_live_search(token, discovered, fbref_names):
+    # Query exact/full names discovered independently. This is the critical
+    # escape hatch from Transfermarkt's weak surname-search relevance ranking.
+    exact_name_queries = sorted(fbref_names)
+    queries = list(BASE_SEARCH_QUERIES) + exact_name_queries
+    all_records = []
+    for start in range(0, len(queries), 50):
+        batch = queries[start:start + 50]
+        payload = {
+            "searchQueries": batch,
+            "maxPlayersPerQuery": DISCOVERY_LIMIT,
+            "includeMarketValueHistory": False,
+            "includeTransferHistory": False,
+            "maxItems": 5000,
+            "language": "en",
+        }
+        records = apify_run(DISCOVERY_ACTOR_ID, payload, token)
+        print(f"Live discovery batch {start + 1}-{start + len(batch)} returned {len(records)} records.")
+        all_records.extend(records)
 
     before = len(discovered)
-    for record in records:
+    for record in all_records:
         if not isinstance(record, dict):
             continue
         name = first_value(record, "name", "full_name", "fullName")
@@ -174,7 +188,6 @@ def discover_from_live_search(token, discovered):
             "name": name,
             "profileUrl": first_value(record, "profileUrl", "profile_url", "url"),
         }
-
     print(f"Live search added {len(discovered) - before} new player IDs.")
     return discovered
 
@@ -183,12 +196,7 @@ def enrich_players(player_ids, token):
     records = []
     for start in range(0, len(player_ids), ENRICHMENT_BATCH_SIZE):
         batch = player_ids[start:start + ENRICHMENT_BATCH_SIZE]
-        payload = {
-            "playerIds": batch,
-            "includeMarketValueHistory": False,
-            "includeTransferHistory": False,
-            "maxItems": len(batch),
-        }
+        payload = {"playerIds": batch, "includeMarketValueHistory": False, "includeTransferHistory": False, "maxItems": len(batch)}
         batch_records = apify_run(ENRICHMENT_ACTOR_ID, payload, token)
         print(f"Enriched batch {start + 1}-{start + len(batch)}: {len(batch_records)} profiles.")
         records.extend(batch_records)
@@ -203,11 +211,10 @@ def main():
 
     try:
         discovered = discover_from_public_dataset()
-        discovered = discover_from_live_search(token, discovered)
+        fbref_names = discover_from_fbref()
+        discovered = discover_from_live_search(token, discovered, fbref_names)
         print(f"Total unique Dembélé IDs to enrich: {len(discovered)}")
-        player_ids = list(discovered)
-        records = enrich_players(player_ids, token)
-        print(f"Enriched {len(records)} Transfermarkt player profiles.")
+        records = enrich_players(list(discovered), token)
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         return 1
@@ -221,54 +228,35 @@ def main():
         player_id = first_value(record, "playerId", "player_id", "id")
         if not name or not player_id or not surname_is_dembele(name):
             continue
-
         key = str(player_id)
         if key in seen:
             continue
         seen.add(key)
-
-        market_value = as_number(first_value(record, "marketValue", "market_value", "market_value_in_eur"))
-        club = first_value(record, "clubName", "currentClub", "club_name", "current_club", "current_club_name")
         nationality = first_value(record, "nationality", "citizenship")
         if isinstance(nationality, list):
             nationality = ", ".join(map(str, nationality))
-        age = as_number(first_value(record, "age"))
-        position = first_value(record, "position", "positionGroup", "position_group")
-        profile_url = first_value(record, "profileUrl", "profile_url", "url")
-        portrait_url = first_value(record, "portraitUrl", "portrait_url", "image_url")
-        market_value_date = first_value(record, "marketValueLastUpdate", "market_value_last_update")
-
         players.append({
             "id": key,
             "name": name,
-            "club": club,
+            "club": first_value(record, "clubName", "currentClub", "club_name", "current_club", "current_club_name"),
             "nationality": nationality,
-            "age": age,
-            "position": position,
-            "marketValue": market_value,
-            "marketValueDate": market_value_date,
-            "profileUrl": profile_url,
-            "portraitUrl": portrait_url,
+            "age": as_number(first_value(record, "age")),
+            "position": first_value(record, "position", "positionGroup", "position_group"),
+            "marketValue": as_number(first_value(record, "marketValue", "market_value", "market_value_in_eur")),
+            "marketValueDate": first_value(record, "marketValueLastUpdate", "market_value_last_update"),
+            "profileUrl": first_value(record, "profileUrl", "profile_url", "url"),
+            "portraitUrl": first_value(record, "portraitUrl", "portrait_url", "image_url"),
         })
 
-    discovered_ids = set(discovered)
-    enriched_ids = {str(player.get("id")) for player in players}
-    missing_ids = sorted(discovered_ids - enriched_ids)
+    missing_ids = sorted(set(discovered) - {p["id"] for p in players})
     if missing_ids:
-        raise RuntimeError(
-            f"Enrichment failed to return {len(missing_ids)} discovered player(s): "
-            + ", ".join(missing_ids)
-        )
+        raise RuntimeError(f"Enrichment failed to return {len(missing_ids)} discovered player(s): " + ", ".join(missing_ids))
 
     players.sort(key=lambda p: (p["marketValue"] or 0), reverse=True)
     output = {
         "updatedAt": datetime.now(timezone.utc).isoformat(),
-        "source": "Transfermarkt via public Transfermarkt dataset discovery + live Apify search + profile enrichment",
-        "discoverySources": [
-            DATASET_PLAYERS_URL,
-            "Transfermarkt live search via Apify broad surname probes",
-        ],
-        "discoveryQueries": list(DISCOVERY_QUERIES),
+        "source": "Transfermarkt via public dataset + FBref surname index + live Apify discovery + profile enrichment",
+        "discoverySources": [DATASET_PLAYERS_URL, FBREF_INDEX_URL, "Transfermarkt live search via Apify"],
         "discoveryCount": len(discovered),
         "players": players,
     }
