@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discover every Dembélé surname match, then enrich those Transfermarkt IDs."""
+"""Discover a broad Dembélé surname population, then enrich those Transfermarkt IDs."""
 
 import json
 import os
@@ -10,12 +10,15 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-DISCOVERY_ACTOR_ID = "automation-lab~transfermarkt-scraper"
+# Discovery uses a scraper whose search endpoint supports up to 500 results.
+# Enrichment uses the ID-based actor so the final values come from individual
+# Transfermarkt player profiles rather than search ranking.
+DISCOVERY_ACTOR_ID = "studio-amba~transfermarkt-scraper"
 ENRICHMENT_ACTOR_ID = "incognito_mode~transfermarkt-player-scraper"
 APIFY_BASE = "https://api.apify.com/v2/actors"
 OUT = Path("data/players.json")
 DISCOVERY_QUERIES = ["Dembele", "Dembélé"]
-DISCOVERY_LIMIT = 100
+DISCOVERY_LIMIT = 500
 ENRICHMENT_BATCH_SIZE = 50
 
 
@@ -86,21 +89,19 @@ def apify_run(actor_id, payload, token):
 
 
 def discover_player_ids(token):
-    """Use a broad surname search twice, then require an exact normalized surname match.
+    """Search broadly for both spellings, then require an exact normalized surname.
 
-    The discovery actor can return up to 100 results per query. If a query fills that
-    limit, we fail instead of silently publishing a potentially incomplete ranking.
+    The discovery actor supports up to 500 results per search. If a query fills
+    that ceiling, we refuse to publish because the population may be truncated.
     """
     discovered = {}
 
     for query in DISCOVERY_QUERIES:
         payload = {
-            "searchQueries": [query],
-            "maxPlayersPerQuery": DISCOVERY_LIMIT,
-            "includeMarketValueHistory": False,
+            "searchQuery": query,
+            "maxResults": DISCOVERY_LIMIT,
             "includeTransferHistory": False,
-            "maxItems": DISCOVERY_LIMIT,
-            "language": "en",
+            "includeMarketValueHistory": False,
         }
         records = apify_run(DISCOVERY_ACTOR_ID, payload, token)
         if len(records) >= DISCOVERY_LIMIT:
