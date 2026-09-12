@@ -25,8 +25,6 @@ The discovery step refuses to publish data if either query reaches the 500-resul
 
 The resulting JSON contains the discovered population, current market values, player metadata, and the discovery queries used for the refresh.
 
-Apify's current Transfermarkt scraper documentation supports up to 500 search results for the discovery actor and direct player-ID lookup for profile enrichment. citeturn1search0turn1search5
-
 ### Required GitHub secret
 
 Add an Actions secret named:
