@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch Dembélé player records from an Apify Transfermarkt actor and write the site's JSON."""
+"""Discover every Dembélé surname match, then enrich those Transfermarkt IDs."""
 
 import json
 import os
@@ -10,9 +10,13 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-ACTOR_ID = "incognito_mode~transfermarkt-player-scraper"
-API_URL = f"https://api.apify.com/v2/actors/{ACTOR_ID}/run-sync-get-dataset-items"
+DISCOVERY_ACTOR_ID = "automation-lab~transfermarkt-scraper"
+ENRICHMENT_ACTOR_ID = "incognito_mode~transfermarkt-player-scraper"
+APIFY_BASE = "https://api.apify.com/v2/actors"
 OUT = Path("data/players.json")
+DISCOVERY_QUERIES = ["Dembele", "Dembélé"]
+DISCOVERY_LIMIT = 100
+ENRICHMENT_BATCH_SIZE = 50
 
 
 def normalize(value: str) -> str:
@@ -40,9 +44,12 @@ def as_number(value):
         return None
     text = value.strip().lower().replace("€", "").replace(",", "")
     multiplier = 1
-    if text.endswith("bn") or text.endswith("b"):
+    if text.endswith("bn"):
         multiplier = 1_000_000_000
-        text = text[:-2] if text.endswith("bn") else text[:-1]
+        text = text[:-2]
+    elif text.endswith("b"):
+        multiplier = 1_000_000_000
+        text = text[:-1]
     elif text.endswith("m") or "mio" in text:
         multiplier = 1_000_000
         text = text.replace("mio", "").replace("m", "")
@@ -56,24 +63,10 @@ def as_number(value):
         return int(digits) if digits else None
 
 
-def main():
-    token = os.environ.get("APIFY_API_TOKEN")
-    if not token:
-        print("APIFY_API_TOKEN is not set. Add it as a GitHub Actions secret.", file=sys.stderr)
-        return 2
-
-    # The actor uses searchQueries/maxPlayersPerQuery (not searchQuery/maxResults).
-    # Ask for the largest available result set for the surname search, then apply
-    # our own exact-surname filter below.
-    payload = {
-        "searchQueries": ["Dembele"],
-        "maxPlayersPerQuery": 50,
-        "includeMarketValueHistory": False,
-        "includeTransferHistory": False,
-        "maxItems": 50,
-    }
+def apify_run(actor_id, payload, token):
+    url = f"{APIFY_BASE}/{actor_id}/run-sync-get-dataset-items"
     request = Request(
-        API_URL,
+        url,
         data=json.dumps(payload).encode("utf-8"),
         headers={
             "Authorization": f"Bearer {token}",
@@ -82,16 +75,85 @@ def main():
         },
         method="POST",
     )
-
     try:
         with urlopen(request, timeout=300) as response:
             records = json.load(response)
     except (HTTPError, URLError, TimeoutError) as exc:
-        print(f"Apify request failed: {exc}", file=sys.stderr)
-        return 1
-
+        raise RuntimeError(f"Apify request failed for {actor_id}: {exc}") from exc
     if not isinstance(records, list):
-        print("Unexpected Apify response: expected a JSON array.", file=sys.stderr)
+        raise RuntimeError(f"Unexpected Apify response from {actor_id}: expected a JSON array.")
+    return records
+
+
+def discover_player_ids(token):
+    """Use a broad surname search twice, then require an exact normalized surname match.
+
+    The discovery actor can return up to 100 results per query. If a query fills that
+    limit, we fail instead of silently publishing a potentially incomplete ranking.
+    """
+    discovered = {}
+
+    for query in DISCOVERY_QUERIES:
+        payload = {
+            "searchQueries": [query],
+            "maxPlayersPerQuery": DISCOVERY_LIMIT,
+            "includeMarketValueHistory": False,
+            "includeTransferHistory": False,
+            "maxItems": DISCOVERY_LIMIT,
+            "language": "en",
+        }
+        records = apify_run(DISCOVERY_ACTOR_ID, payload, token)
+        if len(records) >= DISCOVERY_LIMIT:
+            raise RuntimeError(
+                f'Discovery query "{query}" returned the {DISCOVERY_LIMIT}-player cap. '
+                "The population may be truncated; refusing to publish incomplete data."
+            )
+
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            name = first_value(record, "name", "full_name", "fullName")
+            player_id = first_value(record, "playerId", "player_id", "id")
+            if not name or not player_id or not surname_is_dembele(name):
+                continue
+            discovered[str(player_id)] = {
+                "id": str(player_id),
+                "name": name,
+                "profileUrl": first_value(record, "profileUrl", "profile_url", "url"),
+            }
+
+    return list(discovered.values())
+
+
+def enrich_players(player_ids, token):
+    """Fetch current Transfermarkt profile data for the discovered IDs."""
+    records = []
+    for start in range(0, len(player_ids), ENRICHMENT_BATCH_SIZE):
+        batch = player_ids[start:start + ENRICHMENT_BATCH_SIZE]
+        payload = {
+            "playerIds": batch,
+            "includeMarketValueHistory": False,
+            "includeTransferHistory": False,
+            "maxItems": len(batch),
+        }
+        records.extend(apify_run(ENRICHMENT_ACTOR_ID, payload, token))
+    return records
+
+
+def main():
+    token = os.environ.get("APIFY_API_TOKEN")
+    if not token:
+        print("APIFY_API_TOKEN is not set. Add it as a GitHub Actions secret.", file=sys.stderr)
+        return 2
+
+    try:
+        discovered = discover_player_ids(token)
+        print(f"Discovered {len(discovered)} exact Dembélé surname matches.")
+        player_ids = [player["id"] for player in discovered]
+        records = enrich_players(player_ids, token)
+        print(f"Enriched {len(records)} Transfermarkt player profiles.")
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
         return 1
 
     players = []
@@ -100,10 +162,15 @@ def main():
         if not isinstance(record, dict):
             continue
         name = first_value(record, "name", "full_name", "fullName")
-        if not name or not surname_is_dembele(name):
+        player_id = first_value(record, "playerId", "player_id", "id")
+        if not name or not player_id or not surname_is_dembele(name):
             continue
 
-        player_id = first_value(record, "playerId", "player_id", "id")
+        key = str(player_id)
+        if key in seen:
+            continue
+        seen.add(key)
+
         market_value = as_number(first_value(record, "marketValue", "market_value", "market_value_in_eur"))
         club = first_value(record, "clubName", "currentClub", "club_name", "current_club", "current_club_name")
         nationality = first_value(record, "nationality", "citizenship")
@@ -115,12 +182,8 @@ def main():
         portrait_url = first_value(record, "portraitUrl", "portrait_url", "image_url")
         market_value_date = first_value(record, "marketValueLastUpdate", "market_value_last_update")
 
-        key = str(player_id or normalize(name))
-        if key in seen:
-            continue
-        seen.add(key)
         players.append({
-            "id": player_id,
+            "id": key,
             "name": name,
             "club": club,
             "nationality": nationality,
@@ -132,15 +195,26 @@ def main():
             "portraitUrl": portrait_url,
         })
 
+    discovered_ids = {player["id"] for player in discovered}
+    enriched_ids = {str(player.get("id")) for player in players}
+    missing_ids = sorted(discovered_ids - enriched_ids)
+    if missing_ids:
+        raise RuntimeError(
+            f"Enrichment failed to return {len(missing_ids)} discovered player(s): "
+            + ", ".join(missing_ids)
+        )
+
     players.sort(key=lambda p: (p["marketValue"] or 0), reverse=True)
     output = {
         "updatedAt": datetime.now(timezone.utc).isoformat(),
-        "source": "Transfermarkt via Apify actor",
+        "source": "Transfermarkt via Apify discovery + profile actors",
+        "discoveryQueries": DISCOVERY_QUERIES,
+        "discoveryCount": len(discovered),
         "players": players,
     }
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(output, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"Wrote {len(players)} Dembélé players to {OUT}")
+    print(f"Wrote {len(players)} complete Dembélé player records to {OUT}")
     return 0
 
 
