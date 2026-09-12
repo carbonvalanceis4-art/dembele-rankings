@@ -16,7 +16,7 @@ A small GitHub Pages site that ranks football players whose surname is **Dembél
 
 Transfermarkt does not offer a documented public developer API. The project therefore uses a third-party Apify actor that exposes Transfermarkt player records as structured JSON. The scheduled GitHub Action queries the actor for `Dembele`, keeps records whose normalized surname is exactly `dembele`, sorts them by market value, and commits the resulting JSON to the repository.
 
-Apify's API supports running Actors synchronously and returning their dataset items, which is what the workflow uses. urlApify Actor API documentationhttps://docs.apify.com/actors/running
+Apify's API supports running Actors synchronously and returning their dataset items. See the [Apify Actor API documentation](https://docs.apify.com/actors/running).
 
 ### Required GitHub secret
 
