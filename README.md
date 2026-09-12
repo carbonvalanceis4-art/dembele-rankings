@@ -28,7 +28,7 @@ APIFY_API_TOKEN
 
 The token is used only inside GitHub Actions and is never committed to the repository or exposed to the browser. The workflow can be run manually from **Actions → Update Dembélé rankings → Run workflow** after the secret is configured.
 
-The scheduled refresh currently runs once per day. The workflow can also be changed to run more frequently later if the data provider and GitHub Actions usage make that worthwhile.
+The scheduled refresh currently runs **every six hours**. It can be changed later if a different refresh interval makes more sense.
 
 ## GitHub Pages
 
