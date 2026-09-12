@@ -3,7 +3,7 @@ name: Update Dembélé rankings
 on:
   workflow_dispatch:
   schedule:
-    - cron: "17 6 * * *"
+    - cron: "17 */6 * * *"
 
 permissions:
   contents: write
