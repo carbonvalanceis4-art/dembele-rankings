@@ -38,8 +38,22 @@ def as_number(value):
         return value
     if not isinstance(value, str):
         return None
-    digits = "".join(ch for ch in value if ch.isdigit())
-    return int(digits) if digits else None
+    text = value.strip().lower().replace("€", "").replace(",", "")
+    multiplier = 1
+    if text.endswith("bn") or text.endswith("b"):
+        multiplier = 1_000_000_000
+        text = text[:-2] if text.endswith("bn") else text[:-1]
+    elif text.endswith("m") or "mio" in text:
+        multiplier = 1_000_000
+        text = text.replace("mio", "").replace("m", "")
+    elif text.endswith("k"):
+        multiplier = 1_000
+        text = text[:-1]
+    try:
+        return int(float(text.strip()) * multiplier)
+    except ValueError:
+        digits = "".join(ch for ch in value if ch.isdigit())
+        return int(digits) if digits else None
 
 
 def main():
@@ -48,11 +62,15 @@ def main():
         print("APIFY_API_TOKEN is not set. Add it as a GitHub Actions secret.", file=sys.stderr)
         return 2
 
+    # The actor uses searchQueries/maxPlayersPerQuery (not searchQuery/maxResults).
+    # Ask for the largest available result set for the surname search, then apply
+    # our own exact-surname filter below.
     payload = {
-        "searchQuery": "Dembele",
-        "maxResults": 100,
+        "searchQueries": ["Dembele"],
+        "maxPlayersPerQuery": 50,
         "includeMarketValueHistory": False,
-        "proxyConfiguration": {"useApifyProxy": True},
+        "includeTransferHistory": False,
+        "maxItems": 50,
     }
     request = Request(
         API_URL,
@@ -87,13 +105,13 @@ def main():
 
         player_id = first_value(record, "playerId", "player_id", "id")
         market_value = as_number(first_value(record, "marketValue", "market_value", "market_value_in_eur"))
-        club = first_value(record, "clubName", "club_name", "current_club", "current_club_name")
+        club = first_value(record, "clubName", "currentClub", "club_name", "current_club", "current_club_name")
         nationality = first_value(record, "nationality", "citizenship")
         if isinstance(nationality, list):
             nationality = ", ".join(map(str, nationality))
         age = as_number(first_value(record, "age"))
         position = first_value(record, "position", "positionGroup", "position_group")
-        profile_url = first_value(record, "profileUrl", "profile_url")
+        profile_url = first_value(record, "profileUrl", "profile_url", "url")
         portrait_url = first_value(record, "portraitUrl", "portrait_url", "image_url")
         market_value_date = first_value(record, "marketValueLastUpdate", "market_value_last_update")
 
