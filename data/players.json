@@ -1,5 +1,126 @@
 {
-  "updatedAt": "2026-09-12T12:32:16.000480+00:00",
+  "updatedAt": "2026-09-12T13:06:30.260566+00:00",
   "source": "Transfermarkt via Apify actor",
-  "players": []
+  "players": [
+    {
+      "id": 288230,
+      "name": "Ousmane Dembélé",
+      "club": "Paris Saint-Germain",
+      "nationality": "France",
+      "age": 29,
+      "position": "Centre-Forward",
+      "marketValue": 100000000,
+      "marketValueDate": "2026-06-01",
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/288230",
+      "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/288230-1684148641.jpg?lm=4711"
+    },
+    {
+      "id": 229004,
+      "name": "Moussa Dembélé",
+      "club": "Al-Ettifaq FC",
+      "nationality": "France, Mali",
+      "age": 30,
+      "position": "Centre-Forward",
+      "marketValue": 7000000,
+      "marketValueDate": "2026-06-04",
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/229004",
+      "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/229004-1672831392.jpg?lm=4711"
+    },
+    {
+      "id": 466602,
+      "name": "Karamoko Dembélé",
+      "club": "Queens Park Rangers",
+      "nationality": "England, Scotland",
+      "age": 23,
+      "position": "Attacking Midfield",
+      "marketValue": 2000000,
+      "marketValueDate": "2026-05-28",
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/466602",
+      "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/466602-1737713944.jpg?lm=4711"
+    },
+    {
+      "id": 1004344,
+      "name": "Ali Dembélé",
+      "club": "US Lecce",
+      "nationality": "France, Mali",
+      "age": 22,
+      "position": "Right-Back",
+      "marketValue": 1300000,
+      "marketValueDate": "2026-06-04",
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/1004344",
+      "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/1004344-1730184789.jpg?lm=4711"
+    },
+    {
+      "id": 488656,
+      "name": "Siriki Dembélé",
+      "club": "Oxford United",
+      "nationality": "Scotland, Cote d'Ivoire",
+      "age": 30,
+      "position": "Left Winger",
+      "marketValue": 800000,
+      "marketValueDate": "2026-05-28",
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/488656",
+      "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/488656-1609851610.jpg?lm=4711"
+    },
+    {
+      "id": 19368,
+      "name": "Mousa Dembélé",
+      "club": "Retired",
+      "nationality": "Belgium, Mali",
+      "age": 39,
+      "position": "Central Midfield",
+      "marketValue": null,
+      "marketValueDate": null,
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/19368",
+      "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/19368-1563265500.png?lm=4711"
+    },
+    {
+      "id": 61375,
+      "name": "Garra Dembélé",
+      "club": "Retired",
+      "nationality": "Mali, France",
+      "age": 40,
+      "position": "Centre-Forward",
+      "marketValue": null,
+      "marketValueDate": null,
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/61375",
+      "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/61375-1665255395.png?lm=4711"
+    },
+    {
+      "id": 86915,
+      "name": "Mana Dembélé",
+      "club": "SFC Neuilly-sur-Marne",
+      "nationality": "Mali, France",
+      "age": 37,
+      "position": "Centre-Forward",
+      "marketValue": null,
+      "marketValueDate": null,
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/86915",
+      "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/86915-1449830270.jpg?lm=4711"
+    },
+    {
+      "id": 60529,
+      "name": "Bira Dembélé",
+      "club": "Retired",
+      "nationality": "France, Mali",
+      "age": 38,
+      "position": "Centre-Back",
+      "marketValue": null,
+      "marketValueDate": null,
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/60529",
+      "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/s_60529_1081_2012_1.jpg?lm=4711"
+    },
+    {
+      "id": 31723,
+      "name": "Siramana Dembélé",
+      "club": "Retired",
+      "nationality": "France, Cote d'Ivoire",
+      "age": 49,
+      "position": "Defensive Midfield",
+      "marketValue": null,
+      "marketValueDate": null,
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/31723",
+      "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/31723-1731450086.jpg?lm=4711"
+    }
+  ]
 }
