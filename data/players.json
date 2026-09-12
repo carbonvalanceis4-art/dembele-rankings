@@ -1,6 +1,10 @@
 {
-  "updatedAt": "2026-09-12T14:01:50.813663+00:00",
-  "source": "Transfermarkt via Apify broad discovery probes + profile enrichment",
+  "updatedAt": "2026-09-12T14:13:43.194491+00:00",
+  "source": "Transfermarkt via public Transfermarkt dataset discovery + live Apify search + profile enrichment",
+  "discoverySources": [
+    "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/players.csv.gz",
+    "Transfermarkt live search via Apify broad surname probes"
+  ],
   "discoveryQueries": [
     "Dembele A",
     "Dembele B",
@@ -57,7 +61,7 @@
     "Dembele",
     "Dembélé"
   ],
-  "discoveryCount": 11,
+  "discoveryCount": 13,
   "players": [
     {
       "id": "288230",
@@ -120,16 +124,28 @@
       "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/488656-1609851610.jpg?lm=4711"
     },
     {
-      "id": "1209935",
-      "name": "Hassan Dembele",
-      "club": "Celtic FC U18",
-      "nationality": "Scotland, Cote d'Ivoire",
-      "age": 17,
-      "position": "Right-Back",
-      "marketValue": null,
-      "marketValueDate": null,
-      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/1209935",
+      "id": "1300866",
+      "name": "Issiaka Dembele",
+      "club": "OFK Beograd",
+      "nationality": "Cote d'Ivoire",
+      "age": 20,
+      "position": "Defensive Midfield",
+      "marketValue": 300000,
+      "marketValueDate": "2026-06-05",
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/1300866",
       "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/default.jpg?lm=4711"
+    },
+    {
+      "id": "394326",
+      "name": "Mahamadou Dembélé",
+      "club": "Le Puy-en-Velay FC",
+      "nationality": "France, Mali",
+      "age": 27,
+      "position": "Centre-Back",
+      "marketValue": 225000,
+      "marketValueDate": "2026-05-13",
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/394326",
+      "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/394326-1777787055.png?lm=4711"
     },
     {
       "id": "19368",
@@ -166,6 +182,18 @@
       "marketValueDate": null,
       "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/86915",
       "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/86915-1449830270.jpg?lm=4711"
+    },
+    {
+      "id": "1209935",
+      "name": "Hassan Dembele",
+      "club": "Celtic FC U18",
+      "nationality": "Scotland, Cote d'Ivoire",
+      "age": 17,
+      "position": "Right-Back",
+      "marketValue": null,
+      "marketValueDate": null,
+      "profileUrl": "https://www.transfermarkt.com/x/profil/spieler/1209935",
+      "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/default.jpg?lm=4711"
     },
     {
       "id": "60529",
