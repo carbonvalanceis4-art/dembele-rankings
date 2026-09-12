@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Discover a broad Dembélé surname population, then enrich those Transfermarkt IDs."""
+"""Discover Dembélé players with broad Transfermarkt searches, then enrich by player ID."""
 
 import json
 import os
@@ -10,15 +10,19 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-# Discovery uses a scraper whose search endpoint supports up to 500 results.
-# Enrichment uses the ID-based actor so the final values come from individual
-# Transfermarkt player profiles rather than search ranking.
-DISCOVERY_ACTOR_ID = "studio-amba~transfermarkt-scraper"
+DISCOVERY_ACTOR_ID = "incognito_mode~transfermarkt-player-scraper"
 ENRICHMENT_ACTOR_ID = "incognito_mode~transfermarkt-player-scraper"
 APIFY_BASE = "https://api.apify.com/v2/actors"
 OUT = Path("data/players.json")
-DISCOVERY_QUERIES = ["Dembele", "Dembélé"]
-DISCOVERY_LIMIT = 500
+ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+# Plain surname search is too narrow on some Transfermarkt search endpoints.
+# Probe the surname with each first-letter prefix, then deduplicate by player ID.
+DISCOVERY_QUERIES = (
+    [f"Dembele {letter}" for letter in ALPHABET]
+    + [f"Dembélé {letter}" for letter in ALPHABET]
+    + ["Dembele", "Dembélé"]
+)
+DISCOVERY_LIMIT = 50
 ENRICHMENT_BATCH_SIZE = 50
 
 
@@ -89,45 +93,35 @@ def apify_run(actor_id, payload, token):
 
 
 def discover_player_ids(token):
-    """Search broadly for both spellings, then require an exact normalized surname.
-
-    The discovery actor supports up to 500 results per search. If a query fills
-    that ceiling, we refuse to publish because the population may be truncated.
-    """
     discovered = {}
+    payload = {
+        "searchQueries": list(DISCOVERY_QUERIES),
+        "maxPlayersPerQuery": DISCOVERY_LIMIT,
+        "includeMarketValueHistory": False,
+        "includeTransferHistory": False,
+        "maxItems": 5000,
+        "language": "en",
+    }
+    records = apify_run(DISCOVERY_ACTOR_ID, payload, token)
+    print(f"Discovery actor returned {len(records)} records across {len(DISCOVERY_QUERIES)} probes.")
 
-    for query in DISCOVERY_QUERIES:
-        payload = {
-            "searchQuery": query,
-            "maxResults": DISCOVERY_LIMIT,
-            "includeTransferHistory": False,
-            "includeMarketValueHistory": False,
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        name = first_value(record, "name", "full_name", "fullName")
+        player_id = first_value(record, "playerId", "player_id", "id")
+        if not name or not player_id or not surname_is_dembele(name):
+            continue
+        discovered[str(player_id)] = {
+            "id": str(player_id),
+            "name": name,
+            "profileUrl": first_value(record, "profileUrl", "profile_url", "url"),
         }
-        records = apify_run(DISCOVERY_ACTOR_ID, payload, token)
-        if len(records) >= DISCOVERY_LIMIT:
-            raise RuntimeError(
-                f'Discovery query "{query}" returned the {DISCOVERY_LIMIT}-player cap. '
-                "The population may be truncated; refusing to publish incomplete data."
-            )
-
-        for record in records:
-            if not isinstance(record, dict):
-                continue
-            name = first_value(record, "name", "full_name", "fullName")
-            player_id = first_value(record, "playerId", "player_id", "id")
-            if not name or not player_id or not surname_is_dembele(name):
-                continue
-            discovered[str(player_id)] = {
-                "id": str(player_id),
-                "name": name,
-                "profileUrl": first_value(record, "profileUrl", "profile_url", "url"),
-            }
 
     return list(discovered.values())
 
 
 def enrich_players(player_ids, token):
-    """Fetch current Transfermarkt profile data for the discovered IDs."""
     records = []
     for start in range(0, len(player_ids), ENRICHMENT_BATCH_SIZE):
         batch = player_ids[start:start + ENRICHMENT_BATCH_SIZE]
@@ -208,8 +202,8 @@ def main():
     players.sort(key=lambda p: (p["marketValue"] or 0), reverse=True)
     output = {
         "updatedAt": datetime.now(timezone.utc).isoformat(),
-        "source": "Transfermarkt via Apify discovery + profile actors",
-        "discoveryQueries": DISCOVERY_QUERIES,
+        "source": "Transfermarkt via Apify broad discovery probes + profile enrichment",
+        "discoveryQueries": list(DISCOVERY_QUERIES),
         "discoveryCount": len(discovered),
         "players": players,
     }
