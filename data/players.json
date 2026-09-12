@@ -1,9 +1,14 @@
 {
-  "updatedAt": "2026-09-12T13:06:30.260566+00:00",
-  "source": "Transfermarkt via Apify actor",
+  "updatedAt": "2026-09-12T13:17:59.515439+00:00",
+  "source": "Transfermarkt via Apify discovery + profile actors",
+  "discoveryQueries": [
+    "Dembele",
+    "Dembélé"
+  ],
+  "discoveryCount": 10,
   "players": [
     {
-      "id": 288230,
+      "id": "288230",
       "name": "Ousmane Dembélé",
       "club": "Paris Saint-Germain",
       "nationality": "France",
@@ -15,7 +20,7 @@
       "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/288230-1684148641.jpg?lm=4711"
     },
     {
-      "id": 229004,
+      "id": "229004",
       "name": "Moussa Dembélé",
       "club": "Al-Ettifaq FC",
       "nationality": "France, Mali",
@@ -27,7 +32,7 @@
       "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/229004-1672831392.jpg?lm=4711"
     },
     {
-      "id": 466602,
+      "id": "466602",
       "name": "Karamoko Dembélé",
       "club": "Queens Park Rangers",
       "nationality": "England, Scotland",
@@ -39,7 +44,7 @@
       "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/466602-1737713944.jpg?lm=4711"
     },
     {
-      "id": 1004344,
+      "id": "1004344",
       "name": "Ali Dembélé",
       "club": "US Lecce",
       "nationality": "France, Mali",
@@ -51,7 +56,7 @@
       "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/1004344-1730184789.jpg?lm=4711"
     },
     {
-      "id": 488656,
+      "id": "488656",
       "name": "Siriki Dembélé",
       "club": "Oxford United",
       "nationality": "Scotland, Cote d'Ivoire",
@@ -63,7 +68,7 @@
       "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/488656-1609851610.jpg?lm=4711"
     },
     {
-      "id": 19368,
+      "id": "19368",
       "name": "Mousa Dembélé",
       "club": "Retired",
       "nationality": "Belgium, Mali",
@@ -75,7 +80,7 @@
       "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/19368-1563265500.png?lm=4711"
     },
     {
-      "id": 61375,
+      "id": "61375",
       "name": "Garra Dembélé",
       "club": "Retired",
       "nationality": "Mali, France",
@@ -87,7 +92,7 @@
       "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/61375-1665255395.png?lm=4711"
     },
     {
-      "id": 86915,
+      "id": "86915",
       "name": "Mana Dembélé",
       "club": "SFC Neuilly-sur-Marne",
       "nationality": "Mali, France",
@@ -99,7 +104,7 @@
       "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/86915-1449830270.jpg?lm=4711"
     },
     {
-      "id": 60529,
+      "id": "60529",
       "name": "Bira Dembélé",
       "club": "Retired",
       "nationality": "France, Mali",
@@ -111,7 +116,7 @@
       "portraitUrl": "https://img.a.transfermarkt.technology/portrait/header/s_60529_1081_2012_1.jpg?lm=4711"
     },
     {
-      "id": 31723,
+      "id": "31723",
       "name": "Siramana Dembélé",
       "club": "Retired",
       "nationality": "France, Cote d'Ivoire",
