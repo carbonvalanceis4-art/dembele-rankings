@@ -8,13 +8,22 @@ A small GitHub Pages site that ranks football players whose surname is **Dembél
 - `style.css` — responsive styling
 - `app.js` — client-side search, sorting, and rendering
 - `data/players.json` — generated ranking data
-- `scripts/update_data.py` — filters and normalizes the source records
+- `scripts/update_data.py` — two-stage player discovery and Transfermarkt ID enrichment
 - `.github/workflows/update-data.yml` — scheduled data refresh
 - `.github/workflows/pages.yml` — GitHub Pages deployment
 
 ## Live data pipeline
 
-Transfermarkt does not offer a documented public developer API. The project therefore uses a third-party Apify actor that exposes Transfermarkt player records as structured JSON. The scheduled GitHub Action queries the actor for `Dembele`, keeps records whose normalized surname is exactly `dembele`, sorts them by market value, and commits the resulting JSON to the repository.
+Transfermarkt does not offer a documented public developer API. The project therefore uses third-party Apify actors that expose Transfermarkt data as structured JSON.
+
+The data refresh is deliberately split into two stages:
+
+1. **Discovery:** the discovery actor searches Transfermarkt for both `Dembele` and `Dembélé`, up to 100 results per query. The script then applies its own exact normalized-surname test and deduplicates players by Transfermarkt player ID.
+2. **Enrichment:** those stable Transfermarkt player IDs are sent directly to the profile actor. This avoids relying on search relevance ordering when retrieving current market values and profile information.
+
+The discovery step refuses to publish data if either query reaches its 100-result cap, because that could indicate that the population was truncated. It also refuses to publish if any discovered player cannot be enriched. This is intentional: an incomplete refresh is better than silently publishing an incomplete ranking.
+
+The resulting JSON contains the discovered population, current market values, player metadata, and the discovery queries used for the refresh.
 
 Apify's API supports running Actors synchronously and returning their dataset items. See the [Apify Actor API documentation](https://docs.apify.com/actors/running).
 
