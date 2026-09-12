@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""Discover Dembélé players with broad Transfermarkt searches, then enrich by player ID."""
+"""Discover Dembélé players from a broad Transfermarkt dataset/search sweep, then enrich by player ID."""
 
+import csv
+import gzip
+import io
 import json
 import os
 import sys
@@ -14,9 +17,16 @@ DISCOVERY_ACTOR_ID = "incognito_mode~transfermarkt-player-scraper"
 ENRICHMENT_ACTOR_ID = "incognito_mode~transfermarkt-player-scraper"
 APIFY_BASE = "https://api.apify.com/v2/actors"
 OUT = Path("data/players.json")
+
+# The public Transfermarkt dataset provides a much broader historical player
+# universe than Transfermarkt's ordinary name-search endpoint. It is refreshed
+# from Transfermarkt data, but currently lags the live site, so we supplement
+# it with live Apify search probes below to catch newer players.
+DATASET_PLAYERS_URL = (
+    "https://pub-e682421888d945d684bcae8890b0ec20.r2.dev/data/players.csv.gz"
+)
+
 ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-# Plain surname search is too narrow on some Transfermarkt search endpoints.
-# Probe the surname with each first-letter prefix, then deduplicate by player ID.
 DISCOVERY_QUERIES = (
     [f"Dembele {letter}" for letter in ALPHABET]
     + [f"Dembélé {letter}" for letter in ALPHABET]
@@ -70,6 +80,52 @@ def as_number(value):
         return int(digits) if digits else None
 
 
+def fetch_bytes(url, timeout=300):
+    request = Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (compatible; DembeleRankings/1.0)",
+            "Accept": "*/*",
+        },
+    )
+    try:
+        with urlopen(request, timeout=timeout) as response:
+            return response.read()
+    except (HTTPError, URLError, TimeoutError) as exc:
+        raise RuntimeError(f"Failed to fetch discovery dataset: {exc}") from exc
+
+
+def discover_from_public_dataset():
+    """Find every Dembélé surname in the broad public Transfermarkt dataset."""
+    raw = fetch_bytes(DATASET_PLAYERS_URL)
+    try:
+        text = gzip.decompress(raw).decode("utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise RuntimeError(f"Could not decompress/decode player discovery dataset: {exc}") from exc
+
+    discovered = {}
+    reader = csv.DictReader(io.StringIO(text))
+    required = {"player_id", "name"}
+    if not required.issubset(set(reader.fieldnames or [])):
+        raise RuntimeError(
+            "Unexpected player discovery dataset schema; expected player_id and name columns."
+        )
+
+    for row in reader:
+        name = row.get("name") or ""
+        player_id = row.get("player_id") or ""
+        if not player_id or not surname_is_dembele(name):
+            continue
+        discovered[str(player_id)] = {
+            "id": str(player_id),
+            "name": name,
+            "profileUrl": row.get("url") or None,
+        }
+
+    print(f"Public Transfermarkt dataset yielded {len(discovered)} Dembélé surname matches.")
+    return discovered
+
+
 def apify_run(actor_id, payload, token):
     url = f"{APIFY_BASE}/{actor_id}/run-sync-get-dataset-items"
     request = Request(
@@ -92,8 +148,8 @@ def apify_run(actor_id, payload, token):
     return records
 
 
-def discover_player_ids(token):
-    discovered = {}
+def discover_from_live_search(token, discovered):
+    """Supplement the historical dataset with live Transfermarkt search probes."""
     payload = {
         "searchQueries": list(DISCOVERY_QUERIES),
         "maxPlayersPerQuery": DISCOVERY_LIMIT,
@@ -103,8 +159,9 @@ def discover_player_ids(token):
         "language": "en",
     }
     records = apify_run(DISCOVERY_ACTOR_ID, payload, token)
-    print(f"Discovery actor returned {len(records)} records across {len(DISCOVERY_QUERIES)} probes.")
+    print(f"Live discovery actor returned {len(records)} records across {len(DISCOVERY_QUERIES)} probes.")
 
+    before = len(discovered)
     for record in records:
         if not isinstance(record, dict):
             continue
@@ -118,7 +175,8 @@ def discover_player_ids(token):
             "profileUrl": first_value(record, "profileUrl", "profile_url", "url"),
         }
 
-    return list(discovered.values())
+    print(f"Live search added {len(discovered) - before} new player IDs.")
+    return discovered
 
 
 def enrich_players(player_ids, token):
@@ -131,7 +189,9 @@ def enrich_players(player_ids, token):
             "includeTransferHistory": False,
             "maxItems": len(batch),
         }
-        records.extend(apify_run(ENRICHMENT_ACTOR_ID, payload, token))
+        batch_records = apify_run(ENRICHMENT_ACTOR_ID, payload, token)
+        print(f"Enriched batch {start + 1}-{start + len(batch)}: {len(batch_records)} profiles.")
+        records.extend(batch_records)
     return records
 
 
@@ -142,9 +202,10 @@ def main():
         return 2
 
     try:
-        discovered = discover_player_ids(token)
-        print(f"Discovered {len(discovered)} exact Dembélé surname matches.")
-        player_ids = [player["id"] for player in discovered]
+        discovered = discover_from_public_dataset()
+        discovered = discover_from_live_search(token, discovered)
+        print(f"Total unique Dembélé IDs to enrich: {len(discovered)}")
+        player_ids = list(discovered)
         records = enrich_players(player_ids, token)
         print(f"Enriched {len(records)} Transfermarkt player profiles.")
     except RuntimeError as exc:
@@ -190,7 +251,7 @@ def main():
             "portraitUrl": portrait_url,
         })
 
-    discovered_ids = {player["id"] for player in discovered}
+    discovered_ids = set(discovered)
     enriched_ids = {str(player.get("id")) for player in players}
     missing_ids = sorted(discovered_ids - enriched_ids)
     if missing_ids:
@@ -202,7 +263,11 @@ def main():
     players.sort(key=lambda p: (p["marketValue"] or 0), reverse=True)
     output = {
         "updatedAt": datetime.now(timezone.utc).isoformat(),
-        "source": "Transfermarkt via Apify broad discovery probes + profile enrichment",
+        "source": "Transfermarkt via public Transfermarkt dataset discovery + live Apify search + profile enrichment",
+        "discoverySources": [
+            DATASET_PLAYERS_URL,
+            "Transfermarkt live search via Apify broad surname probes",
+        ],
         "discoveryQueries": list(DISCOVERY_QUERIES),
         "discoveryCount": len(discovered),
         "players": players,
